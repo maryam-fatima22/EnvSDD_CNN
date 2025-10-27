@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+env/
+venv/
+venv38/
+.env
+*.egg-info/
+.dist-info/
+
+# VS Code
+.vscode/
+
+# Data / results / models
+data/
+results/
+*.pt
+*.h5
+*.ckpt
+
+# OS
+.DS_Store
+Thumbs.db
