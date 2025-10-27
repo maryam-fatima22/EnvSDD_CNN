@@ -1,29 +1,62 @@
-import numpy as np
 import librosa
+import numpy as np
+import torch
 
-# Settings
-N_MFCC = 40
-MAX_FRAMES = 44  # number of time frames after which we pad/trim
+# ===============================================================
+# Function: compute_mfcc
+# ===============================================================
+def compute_mfcc(path, sr=16000, n_mfcc=13, n_fft=512, hop_length=256, max_duration=2.0):
+    """
+    Loads an audio file, pads/trims it to a fixed duration, and computes normalized MFCC features.
 
+    Args:
+        path (str): Path to the audio file.
+        sr (int): Sampling rate.
+        n_mfcc (int): Number of MFCC features to compute.
+        n_fft (int): FFT window size.
+        hop_length (int): Hop length for STFT.
+        max_duration (float): Max duration (in seconds) to trim/pad audio for consistency.
 
-def compute_mfcc(y, sr, n_mfcc=N_MFCC, max_frames=MAX_FRAMES):
-    # compute MFCCs with librosa
-    mfcc = librosa.feature.mfcc(y=y, sr=sr, n_mfcc=n_mfcc)
-    # mfcc shape: (n_mfcc, T)
-    
-    # pad or trim to fixed number of frames
-    if mfcc.shape[1] < max_frames:
-        pad_width = max_frames - mfcc.shape[1]
-        mfcc = np.pad(mfcc, ((0, 0), (0, pad_width)), mode='constant')
+    Returns:
+        np.ndarray: Normalized MFCC array of shape (n_mfcc, time_frames)
+    """
+    # Load audio
+    y, sr = librosa.load(path, sr=sr)
+
+    # Ensure consistent duration
+    max_len = int(max_duration * sr)
+    if len(y) < max_len:
+        y = np.pad(y, (0, max_len - len(y)), mode='reflect')
     else:
-        mfcc = mfcc[:, :max_frames]
-    
-    # normalize per-example
-    mfcc = (mfcc - np.mean(mfcc)) / (np.std(mfcc) + 1e-9)
-    
-    return mfcc.astype(np.float32)
+        y = y[:max_len]
+
+    # Compute MFCCs
+    mfcc = librosa.feature.mfcc(y=y, sr=sr, n_mfcc=n_mfcc, n_fft=n_fft, hop_length=hop_length)
+
+    # Normalize features (zero mean, unit variance)
+    mfcc = (mfcc - np.mean(mfcc)) / (np.std(mfcc) + 1e-6)
+
+    return mfcc
 
 
-# For PyTorch conv2d we want shape (C=1, H=n_mfcc, W=max_frames)
+# ===============================================================
+# Function: mfcc_to_input
+# ===============================================================
 def mfcc_to_input(mfcc):
-    return np.expand_dims(mfcc, axis=0)
+    """
+    Converts MFCC numpy array to PyTorch tensor input for CNN.
+
+    Args:
+        mfcc (np.ndarray): MFCC feature array (n_mfcc, time_frames)
+
+    Returns:
+        torch.Tensor: Tensor of shape (1, n_mfcc, time_frames)
+    """
+    # Convert numpy array to float32 tensor
+    tensor = torch.tensor(mfcc, dtype=torch.float32)
+
+    # Add channel dimension for CNN input: (1, n_mfcc, time)
+    tensor = tensor.unsqueeze(0)
+
+    return tensor
+

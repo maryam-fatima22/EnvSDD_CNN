@@ -3,8 +3,9 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
 import argparse
+import os
 
-from dataset import find_audio_files, train_val_split, make_dummy_dataset
+from dataset import find_audio_files
 from preprocess import compute_mfcc, mfcc_to_input
 from model import CNN_MFCC
 from utils import save_checkpoint
@@ -15,25 +16,40 @@ def main(args):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f"Using device: {device}")
 
-    # Option to create a dummy dataset for testing
-    if args.make_dummy:
-        make_dummy_dataset(args.data_dir, n_classes=3, samples_per_class=20)
-        print("Dummy dataset created.")
+    # Paths for training and validation folders
+    train_dir = args.train_dir
+    val_dir = args.val_dir
 
     # Load audio files
-    files, labels, classes = find_audio_files(args.data_dir)
-    if len(files) == 0:
-        raise RuntimeError(f'No audio files found in {args.data_dir}. Check path or use --make_dummy')
+    train_files, train_labels, classes = find_audio_files(train_dir)
+    val_files, val_labels, _ = find_audio_files(val_dir)
 
-    # Split dataset
-    X_train, X_val, y_train, y_val = train_val_split(files, labels, test_size=0.2)
+    if len(train_files) == 0:
+        raise RuntimeError(f'❌ No training audio files found in {train_dir}')
+    if len(val_files) == 0:
+        raise RuntimeError(f'❌ No validation audio files found in {val_dir}')
 
-    # Create Datasets and Loaders
-    train_dataset = SpeechDataset(X_train, y_train, classes)
-    val_dataset = SpeechDataset(X_val, y_val, classes)
+    print(f"✅ Found {len(train_files)} training files and {len(val_files)} validation files.")
+    print(f"Detected classes: {classes}")
 
-    train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, collate_fn=collate_fn)
-    val_loader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False, collate_fn=collate_fn)
+    # Create Datasets
+    train_dataset = SpeechDataset(train_files, train_labels, classes)
+    val_dataset = SpeechDataset(val_files, val_labels, classes)
+
+    # Create Data Loaders
+    train_loader = DataLoader(
+        train_dataset,
+        batch_size=args.batch_size,
+        shuffle=True,
+        collate_fn=collate_fn
+    )
+
+    val_loader = DataLoader(
+        val_dataset,
+        batch_size=args.batch_size,
+        shuffle=False,
+        collate_fn=collate_fn
+    )
 
     # Model setup
     model = CNN_MFCC(num_classes=len(classes))
@@ -50,7 +66,8 @@ def main(args):
         train_loss, train_acc = train_epoch(model, train_loader, criterion, optimizer, device)
         val_loss, val_acc = eval_epoch(model, val_loader, criterion, device)
 
-        print(f'Epoch {epoch}: Train loss {train_loss:.4f} acc {train_acc:.4f} | Val loss {val_loss:.4f} acc {val_acc:.4f}')
+        print(f'Epoch {epoch}: Train loss {train_loss:.4f} acc {train_acc:.4f} | '
+              f'Val loss {val_loss:.4f} acc {val_acc:.4f}')
 
         # Save model
         is_best = val_acc > best_acc
@@ -64,18 +81,24 @@ def main(args):
             'val_acc': val_acc
         }, is_best, out_dir=args.out_dir, filename=f'checkpoint_epoch_{epoch}.pt')
 
-    print(f'\nTraining finished ✅ Best validation accuracy: {best_acc:.4f}')
+    print(f'\n✅ Training finished. Best validation accuracy: {best_acc:.4f}')
     print(f'Models saved in "{args.out_dir}"')
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--data_dir', type=str, default='data', help='Path to dataset directory')
-    parser.add_argument('--out_dir', type=str, default='results', help='Directory to save models and logs')
-    parser.add_argument('--epochs', type=int, default=10, help='Number of training epochs')
-    parser.add_argument('--batch_size', type=int, default=16, help='Batch size')
-    parser.add_argument('--lr', type=float, default=0.001, help='Learning rate')
-    parser.add_argument('--make_dummy', action='store_true', help='Create a dummy dataset for quick testing')
+    parser.add_argument('--train_dir', type=str, required=True,
+                        help='Path to the training dataset (e.g., E:/selected)')
+    parser.add_argument('--val_dir', type=str, required=True,
+                        help='Path to the validation dataset (e.g., E:/selected2)')
+    parser.add_argument('--out_dir', type=str, default='results',
+                        help='Directory to save models and logs')
+    parser.add_argument('--epochs', type=int, default=10,
+                        help='Number of training epochs')
+    parser.add_argument('--batch_size', type=int, default=16,
+                        help='Batch size')
+    parser.add_argument('--lr', type=float, default=0.001,
+                        help='Learning rate')
 
     args = parser.parse_args()
     main(args)

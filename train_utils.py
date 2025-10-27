@@ -1,7 +1,6 @@
 import torch
 from torch.utils.data import Dataset
 import numpy as np
-import soundfile as sf
 from preprocess import compute_mfcc, mfcc_to_input
 
 
@@ -17,21 +16,23 @@ class SpeechDataset(Dataset):
         return len(self.filepaths)
 
     def __getitem__(self, idx):
+        # Fixed indentation + variable name
         path = self.filepaths[idx]
-        label = self.class_to_idx[self.labels[idx]]
-        y, sr = sf.read(path, dtype='float32')
-        if y.ndim > 1:
-            y = y.mean(axis=1)
-        mfcc = compute_mfcc(y, sr)
+        label = self.labels[idx]
+
+        # compute_mfcc expects the file path
+        mfcc = compute_mfcc(path)
         x = mfcc_to_input(mfcc)
-        return torch.tensor(x), torch.tensor(label)
+
+        y = self.class_to_idx[label]
+        return x, y
 
 
 # Collate function (combine samples into a batch)
 def collate_fn(batch):
     xs, ys = zip(*batch)
     xs = torch.stack(xs)
-    ys = torch.stack(ys)
+    ys = torch.tensor(ys)
     return xs, ys
 
 
