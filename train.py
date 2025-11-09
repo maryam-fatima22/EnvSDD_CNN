@@ -4,6 +4,7 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 import argparse
 import os
+import matplotlib.pyplot as plt   # ✅ NEW: for plotting
 
 from dataset import find_audio_files
 from preprocess import compute_mfcc, mfcc_to_input
@@ -61,10 +62,20 @@ def main(args):
 
     best_acc = 0.0
 
+    # ✅ NEW: lists to store training history
+    train_losses, val_losses = [], []
+    train_accs, val_accs = [], []
+
     # Training loop
     for epoch in range(1, args.epochs + 1):
         train_loss, train_acc = train_epoch(model, train_loader, criterion, optimizer, device)
         val_loss, val_acc = eval_epoch(model, val_loader, criterion, device)
+
+        # ✅ Save metrics
+        train_losses.append(train_loss)
+        val_losses.append(val_loss)
+        train_accs.append(train_acc)
+        val_accs.append(val_acc)
 
         print(f'Epoch {epoch}: Train loss {train_loss:.4f} acc {train_acc:.4f} | '
               f'Val loss {val_loss:.4f} acc {val_acc:.4f}')
@@ -83,6 +94,31 @@ def main(args):
 
     print(f'\n✅ Training finished. Best validation accuracy: {best_acc:.4f}')
     print(f'Models saved in "{args.out_dir}"')
+
+    # ✅ NEW: Save training curves
+    os.makedirs('plots', exist_ok=True)
+
+    plt.figure()
+    plt.plot(train_losses, label='Train Loss')
+    plt.plot(val_losses, label='Val Loss')
+    plt.title('Loss Curve')
+    plt.xlabel('Epoch')
+    plt.ylabel('Loss')
+    plt.legend()
+    plt.savefig('plots/loss_curve.pdf')
+    plt.close()
+
+    plt.figure()
+    plt.plot(train_accs, label='Train Accuracy')
+    plt.plot(val_accs, label='Val Accuracy')
+    plt.title('Accuracy Curve')
+    plt.xlabel('Epoch')
+    plt.ylabel('Accuracy')
+    plt.legend()
+    plt.savefig('plots/accuracy_curve.pdf')
+    plt.close()
+
+    print('📊 Plots saved in "plots/" folder.')
 
 
 if __name__ == '__main__':
