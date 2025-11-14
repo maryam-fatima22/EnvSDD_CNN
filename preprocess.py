@@ -3,40 +3,52 @@ import numpy as np
 import torch
 
 # ===============================================================
-# Function: compute_mfcc
+# Function: compute_mfcc (Improved)
 # ===============================================================
-def compute_mfcc(path, sr=16000, n_mfcc=13, n_fft=512, hop_length=256, max_duration=2.0):
+def compute_mfcc(
+    path, 
+    sr=16000, 
+    n_mfcc=64, 
+    n_fft=512, 
+    hop_length=256, 
+    max_duration=2.0
+):
     """
-    Loads an audio file, pads/trims it to a fixed duration, and computes normalized MFCC features.
-
-    Args:
-        path (str): Path to the audio file.
-        sr (int): Sampling rate.
-        n_mfcc (int): Number of MFCC features to compute.
-        n_fft (int): FFT window size.
-        hop_length (int): Hop length for STFT.
-        max_duration (float): Max duration (in seconds) to trim/pad audio for consistency.
-
+    Loads audio, trims/pads it to fixed length, and computes MFCC + delta + delta-delta.
+    
     Returns:
-        np.ndarray: Normalized MFCC array of shape (n_mfcc, time_frames)
+        np.ndarray: Shape (3 * n_mfcc, time_frames)
+                    [MFCC ; Delta ; Delta-Delta]
     """
-    # Load audio
+    # Load file
     y, sr = librosa.load(path, sr=sr)
 
     # Ensure consistent duration
     max_len = int(max_duration * sr)
     if len(y) < max_len:
-        y = np.pad(y, (0, max_len - len(y)), mode='reflect')
+        y = np.pad(y, (0, max_len - len(y)), mode="reflect")
     else:
         y = y[:max_len]
 
-    # Compute MFCCs
-    mfcc = librosa.feature.mfcc(y=y, sr=sr, n_mfcc=n_mfcc, n_fft=n_fft, hop_length=hop_length)
+    # MFCC base
+    mfcc = librosa.feature.mfcc(
+        y=y, sr=sr,
+        n_mfcc=n_mfcc,
+        n_fft=n_fft,
+        hop_length=hop_length
+    )
 
-    # Normalize features (zero mean, unit variance)
-    mfcc = (mfcc - np.mean(mfcc)) / (np.std(mfcc) + 1e-6)
+    # Delta & Delta-Delta
+    delta = librosa.feature.delta(mfcc)
+    delta2 = librosa.feature.delta(mfcc, order=2)
 
-    return mfcc
+    # Stack vertically → channels
+    feats = np.vstack([mfcc, delta, delta2])  # shape: (3*n_mfcc, time)
+
+    # Normalize per-feature
+    feats = (feats - np.mean(feats, axis=1, keepdims=True)) / (np.std(feats, axis=1, keepdims=True) + 1e-6)
+
+    return feats
 
 
 # ===============================================================
@@ -44,19 +56,8 @@ def compute_mfcc(path, sr=16000, n_mfcc=13, n_fft=512, hop_length=256, max_durat
 # ===============================================================
 def mfcc_to_input(mfcc):
     """
-    Converts MFCC numpy array to PyTorch tensor input for CNN.
-
-    Args:
-        mfcc (np.ndarray): MFCC feature array (n_mfcc, time_frames)
-
-    Returns:
-        torch.Tensor: Tensor of shape (1, n_mfcc, time_frames)
+    Convert MFCC into CNN input: (1, channels, time)
     """
-    # Convert numpy array to float32 tensor
     tensor = torch.tensor(mfcc, dtype=torch.float32)
-
-    # Add channel dimension for CNN input: (1, n_mfcc, time)
-    tensor = tensor.unsqueeze(0)
-
+    tensor = tensor.unsqueeze(0)   # → (1, C, T)
     return tensor
-
