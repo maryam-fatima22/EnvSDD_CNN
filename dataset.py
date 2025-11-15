@@ -13,7 +13,18 @@ def find_audio_files(data_dir, exts=['.wav', '.flac', '.mp3']):
         folder = os.path.join(data_dir, label)
         for fname in os.listdir(folder):
             if os.path.splitext(fname)[1].lower() in exts:
-                items.append(os.path.join(folder, fname))
+                path = os.path.join(folder, fname)
+
+                # ==========================
+                # Skip corrupted audio files
+                # ==========================
+                try:
+                    sf.info(path)
+                except Exception as e:
+                    print(f"[WARNING] Skipping corrupted file: {path} ({e})")
+                    continue
+
+                items.append(path)
                 labels.append(label)
     return items, labels, classes
 
@@ -23,11 +34,19 @@ def train_val_split(filepaths, labels, test_size=0.2, random_state=42):
 
 
 def load_audio(path, sr=None):
-    # returns (y, sr)
-    y, sr = sf.read(path, dtype='float32')
+    # -----------------------------------------------------------
+    # TRY loading audio — skip corrupted files automatically
+    # -----------------------------------------------------------
+    try:
+        y, sr = sf.read(path, dtype='float32')
+    except Exception as e:
+        print(f"[WARNING] Corrupted audio encountered in load_audio: {path} ({e})")
+        return None, None
+
     # soundfile may return shape (n,) or (n, channels)
-    if y.ndim > 1:
+    if y is not None and y.ndim > 1:
         y = y.mean(axis=1)
+
     return y, sr
 
 

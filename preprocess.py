@@ -19,9 +19,17 @@ def compute_mfcc(
     Returns:
         np.ndarray: Shape (3 * n_mfcc, time_frames)
                     [MFCC ; Delta ; Delta-Delta]
+        OR None if file is corrupted.
     """
-    # Load file
-    y, sr = librosa.load(path, sr=sr)
+
+    # -----------------------------------------------------------
+    # Try loading audio — skip if corrupted
+    # -----------------------------------------------------------
+    try:
+        y, sr = librosa.load(path, sr=sr)
+    except Exception as e:
+        print(f"[WARNING] Skipping corrupted file: {path} ({e})")
+        return None
 
     # Ensure consistent duration
     max_len = int(max_duration * sr)

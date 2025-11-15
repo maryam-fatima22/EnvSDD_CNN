@@ -75,3 +75,4 @@ def eval_epoch(model, loader, criterion, device):
             count += xb.size(0)
 
     return total_loss / count, correct / count
+
