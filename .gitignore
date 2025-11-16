@@ -13,14 +13,8 @@ venv38/
 # VS Code
 .vscode/
 
-# Data / results / models
-data/
-#results/
-*.pt
-*.h5
-*.ckpt
-
 # OS
 .DS_Store
 Thumbs.db
+
 
