@@ -15,7 +15,7 @@ venv38/
 
 # Data / results / models
 data/
-results/
+#results/
 *.pt
 *.h5
 *.ckpt
@@ -23,3 +23,4 @@ results/
 # OS
 .DS_Store
 Thumbs.db
+
